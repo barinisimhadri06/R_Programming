@@ -1,0 +1,474 @@
+---
+title: "Assignment_4"
+author: "Barini Simhadri"
+date: "31-10-2023"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+```
+
+[Problem 1]\
+[Problem 2](#sec-problem-2)\
+[Problem 3]\
+[Problem 4]\
+
+Importing Libraries
+
+```{r}
+library(dplyr)
+library(caret)
+library(ggplot2)
+library(factoextra)
+library(tidyverse)
+library(e1071)
+library(rpart)
+library(kknn)
+library(cluster)
+```
+
+# Problem 1
+
+For this problem, you will tune and apply kNN and compare it to other classifiers. We will use the wine quality data, which has a number of measurements about chemical components in wine, plus a quality rating. There are separate files for red and white wines, so the first step is some data preparation.
+
+**a.** Load the two provided wine quality datasets and prepare them by (1) ensuring that all the variables have the right type (e.g., what is numeric vs. factor), (2) adding a type column to each that indicates if it is red or white wine and (2) merging the two tables together into one table (hint: try full_join()). You now have one table that contains the data on red and white wine, with a column that tells if the wine was from the red or white set (the type column you made).
+
+```{r}
+white = read.csv("C:/Users/bunty/Desktop/funda/week_7/winequality-white.csv",header = T,sep = ";")
+red = read.csv("C:/Users/bunty/Desktop/funda/week_7/winequality-red.csv",header = T,sep = ";")
+```
+
+There are not NA's in both the data set.
+
+```{r}
+white[rowSums(is.na(white)) > 0, ]
+red[rowSums(is.na(red)) > 0, ]
+```
+
+Here we can see, all the variables has right type.
+
+```{r}
+str(white)
+str(red)
+```
+
+Adding type column to both the data set.
+
+```{r}
+red$type <- "red"
+white$type <- "white"
+```
+
+```{r}
+wines <- full_join(red, white)
+head(wines)
+```
+
+```{r}
+str(wines)
+```
+
+**b.** Use PCA to create a projection of the data to 2D and show a scatterplot with color showing the wine type.
+
+```{r}
+# Create dummy variables
+dummy <- dummyVars(type ~ ., data = wines)
+dummies <- as.data.frame(predict(dummy, newdata = wines))
+head(dummies)
+```
+
+```{r}
+set.seed(123)
+pca = prcomp(dummies)
+```
+
+```{r}
+summary(pca)
+```
+
+```{r}
+screeplot(pca, type = "l") + title(xlab = "PCs")
+```
+
+```{r}
+rotated_data = as.data.frame(pca$x)
+rotated_data$Color <- wines$type
+```
+
+```{r}
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, color = Color)) + geom_point()+
+  labs(title = "PCA Scatterplot of Wine Dataset")
+```
+
+**c.** We are going to try kNN, SVM and decision trees on this data. Based on the 'shape' of the data in the visualization from (b), which do you think will do best and why?
+
+Based on the visualization from (b), I think KNN will do best as it can easily find its neighbor and the data above seems to be bifurcated in red and white wine respectively. Let's apply all the three models and observe which gives the higher accuracy.
+
+```{r}
+wines$type = as.factor(wines$type)
+str(wines$type)
+```
+
+Using KNN :
+
+```{r}
+train_control <- trainControl(method="cv", number = 10)
+knnFit <- train(type ~ ., data = wines, method = "knn", trControl = train_control,
+                preProcess = c("center","scale"))
+knnFit
+```
+
+Using SVM:
+
+```{r}
+svmFit <- train(type ~., data = wines, method = "svmLinear",trControl = train_control)
+svmFit
+```
+
+Using Decision Tree
+
+```{r}
+treeFit <- train(type ~., data = wines, method = "rpart", trControl = train_control)
+treeFit
+```
+
+**d.** Use kNN (tune k), use decision trees (basic rpart method is fine), and SVM (tune C) to predict type from the rest of the variables. Compare the accuracy values -- is this what you expected? Can you explain it?
+
+```{r}
+colnames(wines) <- make.names(colnames(wines))
+```
+
+tuning KNN:
+
+```{r}
+set.seed(123)
+knnTuneFit <- train(type ~ ., data = wines,method = "knn",trControl = train_control,
+                preProcess = c("center","scale"),tuneLength = 15)
+knnTuneFit
+```
+
+```{r}
+#Show a plot of accuracy vs k
+plot(knnTuneFit)
+```
+
+Decision Tree
+
+```{r}
+tree <- train(type ~., data = wines, method = "rpart", trControl =train_control)
+tree
+```
+
+Tuning SVM
+
+```{r}
+grid <- expand.grid(C = 10^seq(-5,2,0.5))
+svm_grid <- train(type ~., data = wines, method = "svmLinear",
+                  trControl = train_control, tuneGrid = grid)
+svm_grid
+```
+
+From the above, the accuracy are - KNN(k=7) : 0.9932286, decision tree(cp=0.06253909) :0.9313599, SVM(C=31.62278):0.9950738. SVM has the highest accuracy followed by KNN and decision tree. These results are nearly expected as we know KNN and SVM are good classification algorithm and gives higher accuracy. However, the outcome seems to inclined with our expectation , still we should consider the behavior of dataset and other factors before deciding the appropriate algorithm and do some try out methods in order to incline with the specific algorithm.
+
+**e.** Use the same already computed PCA again to show a scatter plot of the data and to visualize the labels for kNN, decision tree and SVM. Note that you do not need to recreate the PCA projection, you have already done this in 1b. Here, you just make a new visualization for each classifier using its labels for color (same points but change the color). Map the color results to the classifier, that is use the "predict" function to predict the class of your data, add it to your data frame and use it as a color. This is done for KNN in the tutorial, it should be similar for the others. Consider and explain the differences in how these classifiers performed.
+
+```{r}
+svm_pre = predict(svm_grid,wines)
+rotated_data$svm_rotate = svm_pre
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, color = svm_rotate)) + geom_point()+
+  labs(title = "SVM_PRE Scatterplot of Wine Dataset")
+```
+
+```{r}
+knn_pre = predict(knnTuneFit,wines)
+rotated_data$knn_rotate = knn_pre
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, color = knn_rotate)) + geom_point(alpha = 0.8)+
+  labs(title = "KNN_PRE Scatterplot of Wine Dataset") + scale_color_manual(values=c('Blue','Yellow'))
+
+```
+
+```{r}
+decision_pre = predict(tree,wines)
+rotated_data$decision_rotate = decision_pre
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, color = decision_rotate)) + geom_point(alpha = 0.8)+
+  labs(title = "DECISION_PRE Scatterplot of Wine Dataset") + scale_color_manual(values=c('purple','orange'))
+```
+
+\
+
+# Problem 2 {#sec-problem-2}
+
+In this question we will use the Sacramento data, which covers available housing in the region of that city. The variables include numerical information about the size of the housing and its price, as well as categorical information like zip code (there are a large but limited number in the area), and the type of unit (condo vs house (coded as residential)).
+
+**a.** Load the data from the tidyverse library with the data("Sacramento") command and you should have a variable Sacramento. Because we have categoricals, convert them to dummy variables.
+
+```{r}
+data("Sacramento")
+df_sac = select(Sacramento, -c("latitude", "longitude", "zip"))
+head(df_sac)
+```
+
+creating dummies.
+
+```{r}
+dummy_sac <- dummyVars(type ~ ., data = df_sac)
+dummies_sac <- as.data.frame(predict(dummy_sac, newdata = df_sac))
+```
+
+**b.** With kNN, because of the high dimensionality, which might be a good choice for the distance function? when working with high dimensionality data set, it always become a challenge to pick up a good choice for the distance. We have to try out different functions and check for the metrics we get and select the appropriate one. Apart from this, Minkowski distance, a general distance function as for which (h=1)-Manhattan distance and (h=2)-Euclidean distance is chosen. So, depending on the data, Minkowski can give flexibility by setting its parameter h. Therefore, using Minkowski is fairly common in high dimensional data.\
+
+**c.** Use kNN to classify this data with type as the label. Tune the choice of k plus the type of distance function. Report your results -- what values for these parameters were tried, which were chosen, and how did they perform with accuracy?
+
+```{r}
+sacramento_dummies <- dummies_sac
+sacramento_dummies$type <- Sacramento$type
+head(sacramento_dummies)
+```
+
+
+
+```{r}
+tuneGrid <- expand.grid(kmax = 3:7,                   # test a range of k values 3 to 7
+                    kernel = c("rectangular", "cos"), # regular and cosine-based distance functions
+                    distance = 1:3)                   # powers of Minkowski 1 to 3
+
+
+# tune and fit the model with 10-fold cross validation,
+# standardization, and our specialized tune grid
+kknn_fit <- train(type ~ .,
+                  data = sacramento_dummies,
+                  method = 'kknn',
+                  trControl = train_control,
+                  preProcess = c('center', 'scale'),
+                  tuneGrid = tuneGrid)
+
+kknn_fit
+```
+From the above model, the sacramento data was trained and fit using KNN algorithm. The range of K values tested were 3 to 7 with (rectangular and cosine) kernels and powers of Minkowski distance 1 to 3. After fitting the model, The final values used for the model were kmax = 4, distance = 1 and kernel = cos where the accuracy is 0.9420114 which shows how well the model performed on different sets of values of kernels and finding the best optimal accuracy.  
+
+\
+
+# Problem 3
+
+In this problem we will continue with the wine quality data from Problem 1, but this time we will use clustering. Do not forget to remove the type variable before clustering because that would be cheating by using the label to perform clustering.
+
+**a.** Use k-means to cluster the data. Show your usage of silhouette and the elbow method to pick the best number of clusters. Make sure it is using multiple restarts.
+
+```{r}
+df_wines = wines
+df_wines = select(df_wines,-c("type"))
+head(df_wines)
+```
+```{r}
+set.seed(123)
+preproc <- preProcess(df_wines, method=c("center", "scale"))
+predictors <- predict(preproc, df_wines)
+```
+
+```{r}
+fviz_nbclust(predictors, kmeans, method = "wss")
+```
+elbow method suggest k = 4.
+
+```{r}
+fviz_nbclust(predictors, kmeans, method = "silhouette")
+```
+Silhouette method suggest k = 4.
+
+```{r}
+# Fit the data
+fit <- kmeans(predictors, centers = 4, nstart = 25)
+fit
+```
+
+```{r}
+fviz_cluster(fit, data = predictors)
+```
+
+**b.** Use hierarchical agglomerative clustering (HAC) to cluster the data. Try at least 2 distance functions and at least 2 linkage functions (cluster distance functions), for a total of 4 parameter combinations. For each parameter combination, perform the clustering.
+
+```{r}
+#Euclidean and complete linkage:
+dist_mat <- dist(predictors, method = 'euclidean')
+# Determine assembly/agglomeration method and run hclust
+hfit1 <- hclust(dist_mat, method = 'complete')
+plot(hfit1)
+```
+
+```{r}
+#Euclidean and average linkage:
+dist_mat <- dist(predictors, method = 'euclidean')
+# Determine assembly/agglomeration method and run hclust
+hfit2 <- hclust(dist_mat, method = 'average')
+plot(hfit2)
+```
+
+
+```{r}
+#Manhattan and complete linkage:
+dist_mat <- dist(predictors, method = 'manhattan')
+# Determine assembly/agglomeration method and run hclust (average uses mean)
+hfit3 <- hclust(dist_mat, method = 'complete')
+plot(hfit3)
+```
+
+
+```{r}
+#Manhattan and average linkage:
+dist_mat <- dist(predictors, method = 'manhattan')
+# Determine assembly/agglomeration method and run hclust (average uses mean)
+hfit4 <- hclust(dist_mat, method = 'average')
+plot(hfit4)
+```
+
+```{r}
+#built the new model
+h1 <- cutree(hfit1, k=4)
+h2 <- cutree(hfit2, k=4)
+h3 <- cutree(hfit3, k=4)
+h4 <- cutree(hfit4, k=4)
+```
+
+**c.** Compare the k-means and HAC clusterings by creating a crosstabulation between their labels.
+```{r}
+# Create a dataframe for results of 4 HAC
+result1 <- data.frame(Type = wines$type, HAC1 = h1, Kmeans = fit$cluster)
+result2 <- data.frame(Type = wines$type, HAC2 = h2, Kmeans = fit$cluster)
+result3 <- data.frame(Type = wines$type, HAC3 = h3, Kmeans = fit$cluster)
+result4 <- data.frame(Type = wines$type, HAC4 = h4, Kmeans = fit$cluster)
+```
+
+```{r}
+# Crosstab for HAC
+result1 %>% group_by(HAC1) %>% select(HAC1, Type) %>% table()
+result2 %>% group_by(HAC2) %>% select(HAC2, Type) %>% table()
+result3 %>% group_by(HAC3) %>% select(HAC3, Type) %>% table()
+result4 %>% group_by(HAC4) %>% select(HAC4, Type) %>% table()
+```
+
+```{r}
+# Crosstab for K Means
+result1 %>% group_by(Kmeans) %>% select(Kmeans, Type) %>% table()
+```
+
+**d.** For comparison -- use PCA to visualize the data in a scatterplot. Create 3 separate plots: use the color of the points to show (1) the type label, (2) the k-means cluster labels and (3) the HAC cluster labels.
+```{r}
+set.seed(123)
+pca = prcomp(dummies)
+rotated_data_cluster = as.data.frame(pca$x)
+```
+
+```{r}
+# add the type to the rotated data
+rotated_data_cluster$Color <- wines$type
+ggplot(data = rotated_data_cluster, aes(x = PC1, y = PC2, col = Color)) + geom_point()
+```
+```{r}
+rotated_data_cluster$Clusters = as.factor(h3)
+# Plot and color by labels
+ggplot(data = rotated_data_cluster, aes(x = PC1, y = PC2, col = Clusters)) + geom_point()
+```
+```{r}
+rotated_data_cluster$kClusters = as.factor(fit$cluster)
+# Plot and color by labels
+ggplot(data = rotated_data_cluster, aes(x = PC1, y = PC2, col = kClusters)) + geom_point()
+```
+
+
+**e.** Consider the results of C and D and explain the differences between the clustering results in terms of how the algorithms work.
+
+K-means uses a pre-specified K value, while HAC doesn't. We can see that the clustering method
+seems to be less random in the K-means method.
+
+\
+
+# Problem 4
+
+Back to the Starwars data from a previous assignment! Remember that the variable that lists the actual names and the variables that are actually lists will be a problem, so remove them (name, films, vehicles, starships). Make sure to double check the types of the variables, i.e., that they are numerical or factors as you expect.
+```{r}
+df_starwars = starwars
+df_starwars = select(df_starwars,-c("name", "vehicles", "starships", "films"))
+str(df_starwars)                    
+```
+
+```{r}
+df_starwars <- na.omit(df_starwars)
+```
+
+**a.** Use hierarchical agglomerative clustering to cluster the Starwars data. This time we can leave the categorical variables in place, because we will use the gower metric from daisy in the cluster library to get the distances. Use average linkage. Determine the best number of clusters.
+
+```{r}
+df_starwars <- as.data.frame(unclass(df_starwars),  # Convert all columns to factor
+                       stringsAsFactors = TRUE)
+str(df_starwars)
+```
+
+```{r}
+dist_mat <- daisy(df_starwars, metric = "gower")
+preproc <- preProcess(df_starwars, method=c("center", "scale"))
+predictors <- predict(preproc, df_starwars)
+```
+
+```{r}
+fviz_nbclust(predictors, FUN = hcut, method = "silhouette")
+```
+```{r}
+# Determine assembly/agglomeration method and run hclust
+hfit <- hclust(dist_mat, method = 'average')
+# Build the new model
+h2 <- cutree(hfit, k=2)
+summary(h2)
+```
+
+
+**b.** Produce the dendogram for (a). How might an anomaly show up in a dendogram? Do you see a Starwars character who does not seem to fit in easily? What is the advantage of considering anomalies this way as opposed to looking for unusual values relative to the mean and standard deviations, as we considered earlier in the course? Disadvantages?
+
+```{r}
+hfit <- hclust(dist_mat, method = 'average')
+plot(hfit)
+```
+
+
+**c.**Use dummy variables to make this data fully numeric and then use k-means to cluster. Choose the best number of clusters.
+
+```{r}
+dummy <- dummyVars(gender ~ ., data = df_starwars)
+dummies <- as.data.frame(predict(dummy, newdata = df_starwars))
+head(dummies)
+```
+```{r}
+predictors <- dummies
+# Center scale allows us to standardize the data
+preproc <- preProcess(predictors, method=c("center", "scale"))
+# We have to call predict to fit our data based on preprocessing
+predictors <- predict(preproc, predictors)
+```
+
+```{r}
+fviz_nbclust(predictors, kmeans, method = "silhouette")
+```
+```{r}
+fit <- kmeans(predictors, centers = 2, nstart = 25)
+fit
+```
+
+
+**d.** Compare the HAC and k-means clusterings with a crosstabulation.
+
+Below results shows the comparison of cluters with a crosstabulation.
+```{r}
+result <- data.frame(Gender = df_starwars$gender, HAC2 = h2, Kmeans = fit$cluster)
+#create a cross tab for HAC
+```
+
+```{r}
+#create a cross tab for HAC
+result %>% group_by(HAC2) %>% select(HAC2, Gender) %>% table()
+```
+
+```{r}
+#create a cross tab for k-means
+result %>% group_by(Kmeans) %>% select(Kmeans, Gender) %>% table()
+```
+

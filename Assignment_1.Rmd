@@ -1,0 +1,301 @@
+---
+title: "homework_1"
+Author: "Barini Simhadri DSC-441"
+date: "2023-09-22"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE)
+```
+
+[Problem1](#sec-problem-1)\
+[Problem2](#sec-problem-2)\
+[Problem3](#sec-problem-3)\
+[Problem4](#sec-problem-4)
+
+Importing libraries
+
+```{r message=FALSE}
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(tidyr)
+```
+
+## Problem 1 {#sec-problem-1}
+
+For this question, we will use the US census data set from 1994, which is in adult.csv.
+
+**a.** First, we look at the summary statistics for all the variables. Based on those metrics, including the quartiles , compare two variables. What can you tell about their shape from these summaries?
+
+Reading US census data set csv file. (adult.csv)
+
+```{r}
+data <- read.csv2("C:/Users/bunty/Desktop/funda/adult.csv", header = T,sep = ",")
+```
+
+```{r}
+df <- as.data.frame(data)
+dim(df)
+summary(df)
+```
+
+From the above statistics of data set, we can observe the dimensions of the data set 32561 x 15. Taking two variables or attribute [age, hours.per.week] and based on the summary we can tell the shape, as mean \> median for column age which indicates it is positive skewed and for the hours.per.week, the mean \~= median, which indicated it is near to normally distributed (nearly symmetrical).The entire data is mostly positive skewed.
+
+**b.** Use a visualization to get a fine-grain comparison (you don't have to use QQ plots, though) of the distributions of those two variables. Why did you choose the type of visualization that you chose? How do your part (a) assumptions compare to what you can see visually?
+
+In the below visualization,I have chosen histogram with the line of mean and median to show the distribution of the age and hours.per.week.
+
+```{r}
+ggplot(df, aes(x=age)) + 
+ geom_histogram(colour="black",fill="grey")+
+  geom_vline(aes(xintercept=mean(age)),color="blue", linetype="dashed",size=1)+
+  geom_vline(aes(xintercept=median(age)),color="green", linetype="dashed", size=1)
+```
+
+As discussed from the summary, we can see the distribution is postive skewed and the blue and green line shows mean and median respectively.
+
+```{r}
+ggplot(df, aes(x=hours.per.week)) + 
+ geom_histogram(colour="black",fill="grey")+geom_vline(aes(xintercept=mean(hours.per.week)),color="blue", linetype="dashed",size=1)+geom_vline(aes(xintercept=median(hours.per.week)),color="green", linetype="dashed", size=1)
+```
+
+Similarly for this attribute, it is nearly symmetrical and we can observe the mean and median are much closer to each other.
+
+**c.** Now create a scatter plot matrix of the numerical variables. What does this view show you that would be difficult to see looking at distributions?
+
+```{r message=FALSE}
+d_num = select_if(df,is.numeric)
+ggpairs(d_num)
+```
+
+The scatter matrix view gives the relationship between each variables in the data set. This view is useful because it allows us to identify the correlation which would be difficult to see looking at the distribution. Here, we can observe there is a positive relation between age and capital.gain, negative relation between fnlwgt and hours.per.week and no relation between fnlwgt and capital.gain.
+
+**d.** These data are a selection of US adults. It might not be a very balanced sample, though. Take a look at some categorical variables and see if any have a lot more of one category than others. There are many ways to do this, including histograms and following tidyererse group_by with count. I recommend you try a few for practice.
+
+```{r}
+ggplot(df, aes(x=age,)) +
+  geom_histogram(binwidth=30,colour="black",fill="grey")+facet_wrap(~sex)
+```
+
+Here, we can see the sex variable has two categories male and female with higher number of males than females.
+
+```{r}
+unique(df$education)
+```
+
+The education variable has total 16 categories with highest count in the category of HS-grad.
+
+```{r}
+df %>%
+  group_by(education) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = education, y = n, fill = education)) +
+  geom_bar(stat = "identity")
+```
+
+```{r}
+df %>%
+group_by(race) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = race, y = n, fill = race)) +
+  geom_bar(stat = "identity")
+```
+
+variable race has total 5 categories as shown in the above chart with white race having highest count.
+
+```{r}
+df %>%
+group_by(relationship) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = relationship, y = n, fill = relationship)) +
+  geom_bar(stat = "identity")
+```
+
+Similarly, variable relationship has 6 categories with husband as highest.
+
+**e.** Now we'll consider a relationship between two categorical variables. Create a cross tabulation and then a corresponding visualization and explain a relationship between some of the values of the categorical.
+
+```{r}
+cross_tabulation <- table(df$marital.status,df$income.bracket)
+cross_tabulation
+```
+
+```{r}
+ggplot(df,aes(marital.status, fill=income.bracket))+geom_bar()
+```
+
+From the cross tabulation and stacked bar graph we can observe there is a relation between marital.status and income.bracket. Within Never-married category there is a higher proportion of people who has income \<=50k.\
+
+## Problem 2 {#sec-problem-2}
+
+In this question, you will integrate data on different years into one table and use some reshaping to get a visualization. There are two data files: population_even.csv and population_odd.csv. These are population data for even and odd years respectively.
+
+**a.** Join the two tables together so that you have one table with each state's population for years 2010- 2019. If you are unsure about what variable to use as the key for the join, consider what variable the two original tables have in common. (Show a head of the resulting table.)
+
+```{r}
+data_even <- read.csv2("C:/Users/bunty/Desktop/funda/population_even.csv",header = T,sep=",")
+even = as.data.frame(data_even)
+data_odd<- read.csv2("C:/Users/bunty/Desktop/funda/population_odd.csv",header=T,sep=",")
+odd = as.data.frame(data_odd)
+```
+
+```{r}
+merged_data = even %>% inner_join(odd,by="NAME")
+head(merged_data)
+```
+
+**b.** Clean this data up a bit (show a head of the data after):
+
+Remove the duplicate state ID column if your process created one.
+
+```{r}
+merged_data <- select(merged_data,-STATE.y)
+colnames(merged_data)[1] = "STATE"
+head(merged_data)
+```
+
+Rename columns to be just the year number.
+
+```{r}
+new = gsub("POPESTIMATE","",colnames(merged_data))
+colnames(merged_data)=new
+head(merged_data)
+```
+
+Reorder the columns to be in year order.
+
+```{r}
+merged_data = merged_data[,c("STATE","NAME",sort(colnames(merged_data)[3:ncol(merged_data)]))]
+head(merged_data)
+```
+
+**c.** Deal with missing values in the data by replacing them with the average of the surrounding years. For example, if you had a missing value for Georgia in 2016, you would replace it with the average of Georgia's 2015 and 2017 numbers. This may require some manual effort.
+
+Summary of merge_data shows there are some NA's in the columns
+
+```{r}
+summary(merged_data)
+```
+
+Replacing the NA's
+
+```{r}
+for (i in 1:nrow(merged_data)){
+  for(j in 3:ncol(merged_data)){
+    if(is.na(merged_data[i,j])){
+      p_=merged_data[i,j-1]
+      n_=merged_data[i,j+1]
+      avg = mean(c(p_,n_), na.rm=TRUE)
+      merged_data[i,j]<-avg
+    }
+  }
+}
+summary(merged_data)
+```
+
+**d.** We can use some tidyverse aggregation to learn about the population.
+
+a.Get the maximum population for a single year for each state. Note that because you are using an aggregation function (max) across a row, you will need the rowwise() command in your tidyverse pipe. If you do not, the max value will not be individual to the row. Of course there are alternative ways.
+
+using pipeline and rowwise() as learned in tutorial 1
+
+```{r}
+max_pop = merged_data %>%
+  rowwise() %>%
+  mutate(max_population = max(c_across(3:ncol(.)),na.rm = TRUE)) %>%
+  select(STATE,max_population)
+max_pop
+```
+
+b.Now get the total population across all years for each state. This should be possible with a very minor change to the code from (d). Why is that?
+
+Just we need to change the aggregate function.
+
+```{r}
+total_sum_state <- merged_data %>%
+  rowwise() %>%
+  mutate(total_sum = sum(c_across(3:ncol(.)), na.rm = TRUE)) %>%
+  select(STATE, total_sum)
+
+total_sum_state
+```
+
+**e.** Finally, get the total US population for one single year. Keep in mind that this can be done with a single line of code even without the tidyverse, so keep it simple.
+
+```{r}
+total <- colSums(merged_data[3:ncol(merged_data)])
+total
+```
+
+## Problem 3 {#sec-problem-3}
+
+Continuing with the data from Problem 2, let's create a graph of population over time for a few states (choose at least three yourself). This will require another data transformation, a reshaping. In order to create a line graph, we will need a variable that represents the year, so that it can be mapped to the x axis. Use a transformation to turn all those year columns into one column that holds the year, reducing the 10 year columns down to 2 columns (year and population). Once the data are in the right shape, it will be no harder than any line graph: put the population on the y axis and color by the state.
+
+Reshaping data set.
+
+```{r}
+reshaped_data <- merged_data %>%
+  pivot_longer(cols = "2010":"2019", names_to = "Year", values_to = "Population")
+
+reshaped_data
+```
+
+```{r}
+states <- reshaped_data %>% filter(NAME %in% c("Illinois","Kansas","Texas"))
+
+states
+```
+
+```{r}
+ggplot(states,aes(x=Year,y=Population,group=NAME,color=STATE))+geom_line(aes(linetype=NAME))+
+  theme_minimal()
+```
+
+## Problem 4 {#sec-problem-4}
+This problem is short answer questions only. No code is needed.
+
+**a.** Describe two ways in which data can be dirty, and for each one, provide a potential solution. There are many ways in which data can be dirty, some of it are: *Incomplete Data* : Incomplete data occurs when certain fields or values are missing from the data set. For example, a Student database might have missing some of the details and values. This can lead to inaccurate analysis. Missing or incomplete data can be ignored, replaced or inferred. The Solution to it - we can drop all the rows which contain incomplete information only if it does not affect the analysis and predicting outputs, can be replaced with mean median mode if we do not have a class label and depending up on the data set.
+
+*Noisy Data* : Noisy data means incomplete, errors that  present in the data set. Solution to handle noisy data is to identify the outliers and clean the data. 
+In univariate case, IQR and standard deviation method can be used to detect outliers and smoothing it to remove noise. 
+In bivariate case, liner regression can be used for the same.
+
+**b.** Explain which data mining functionality you would use to help with each of these data questions.
+
+*a.* Suppose we have data where each row is a customer and we have columns that describe their purchases. What are five groups of customers who buy similar things?
+
+clustering is the best approach by making 5 groups (clusters) who buy similar things.
+
+*b.* For the same data: can I predict if a customer will buy milk based on what else they bought?
+
+Yes we can use classification to predict if a customer will buy milk on what else they bought. 
+
+*c.* Suppose we have data listing items in individual purchases. What are different sets of products that are often purchased together?
+
+Here, association rule mining can be used.
+
+**d.** Explain if each of the following is a data mining task
+
+*a.* Organizing the customers of a company according to education level.
+
+This is not a data mining task.to do this task we use sorting and grouping.
+
+*b.* Computing the total sales of a company.
+
+No, this is not a data mining task.
+
+*c.* Sorting a student database according to identification numbers.
+
+No, this is not a data mining task.
+
+*d.* Predicting the outcomes of tossing a (fair) pair of dice. No, this is not a data mining task as this is a part of probability.
+
+*e.* Predicting the future stock price of a company using historical records.
+
+Yes, this is a data mining task because it takes the historical data to anlayze future predictions of a company.

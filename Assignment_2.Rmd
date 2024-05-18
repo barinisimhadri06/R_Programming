@@ -1,0 +1,643 @@
+---
+title: "Assignment_2"
+author: "BARINI SIMHADRI"
+output: pdf_document
+chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,warning = FALSE)
+```
+
+[Problem 1](#sec-problem-1)\
+[Problem 2](#sec-problem-2)\
+[Problem 3](#sec-problem-3)\
+[Problem 4](#sec-problem-4)\
+[Problem 5](#sec-problem-5)\
+
+Importing required libraries.
+
+```{r}
+library(caret) 
+library(ggplot2)
+library(e1071)
+library(tidyverse)
+```
+
+Importing bank data set.
+
+```{r}
+bank_data = read.csv("C:/Users/bunty/Desktop/funda/week_4/BankData.csv",header = T, sep=",")
+```
+
+# Problem 1 {#sec-problem-1}
+
+For this problem, you will load and perform some cleaning steps on a dataset in the provided BankData.csv, which is data about loan approvals from a bank in Japan (it has been modified from the original for our purposes in class, so use the provided version). Specifically, you will use visualization to examine the variables and normalization, binning and smoothing to change them in particular ways.
+
+**a.** Visualize the distributions of the variables in this data. You can choose bar graphs, histograms and density plots. Make appropriate choices given each type of variables and be careful when selecting parameters like the number of bins for the histograms. Note there are some numerical variables and some categorical ones. The ones labeled as a 'bool' are Boolean variables, meaning they are only true or false and are thus a special type of categorical. Checking all the distributions with visualization and summary statistics is a typical step when beginning to work with new data.
+
+checking for the class of each columns. here, bool1 , bool2, bool3, approval are categorical and we will convert it into numerical.
+
+```{r}
+str(bank_data)
+```
+
+There are NA's present in some of the columns.
+
+```{r}
+summary(bank_data)
+```
+
+checking all the rows with NA's, and there are total 24 rows with NA's.
+
+```{r}
+bank_data[rowSums(is.na(bank_data)) > 0, ]
+```
+
+dropping all the rows with NA's and we can see that all the rows with NA's are dropped.
+
+```{r}
+bank_data <- na.omit(bank_data)
+bank_data[rowSums(is.na(bank_data)) > 0, ]
+```
+
+replacing categorical value to numerical.
+
+```{r}
+bank_data$bool1 <- ifelse(bank_data$bool1 == "t",1,0)
+bank_data$bool2 <- ifelse(bank_data$bool2 == "t",1,0)
+bank_data$bool3 <- ifelse(bank_data$bool3 == "t",1,0)
+bank_data$approval <- ifelse(bank_data$approval == "+",1,0)
+```
+
+```{r}
+str(bank_data)
+```
+
+Using histogram and density plot to visualize the distribution of credit.score. It is nearly symmetrical distribution.
+
+```{r}
+ggplot(bank_data,aes(x=credit.score)) +geom_histogram(aes(y = after_stat(density)) ,color = "black" ,fill="cornflowerblue")  + geom_density(alpha = .1, fill="red") + 
+  geom_vline(aes(xintercept=mean(credit.score)),color = "green" ,linetype = "dashed" , linewidth = 2)
+```
+
+Distribution of credit.score wrt approval.
+
+```{r}
+ggplot(bank_data, aes(x = credit.score)) + geom_histogram(binwidth = 30,color="black" , fill="cornflowerblue") +
+facet_wrap(~approval)
+```
+
+**b.** Now apply normalization to some of these numerical distributions. Specifically, choose to apply z- score to one, min-max to another, and decimal scaling to a third. Explain your choices of which normalization applies to which variable in terms of what the variable means, what distribution it starts with, and how the normalization will affect it.
+
+Z-score normalization to column cont1. We use z-score when the data is nearly to normally distributed so that it gets normalize to the mean to 0 and standard deviation of 1 and to know how the data points are deviated from the mean of distribution.
+
+```{r}
+summary(bank_data$cont1)
+```
+
+```{r}
+z_score <- bank_data$cont1
+z_score <- as.data.frame(z_score)
+```
+
+method = center , scale for z_score normalization
+
+```{r}
+z_score_preproc <- preProcess(z_score,method = c("center","scale"))
+standardization <- predict(z_score_preproc,z_score)
+```
+
+```{r}
+z_score$z_cont1 <- standardization
+summary(z_score$z_cont1)
+```
+
+```{r}
+z_score$z_cont1 <- unlist(z_score$z_cont1)
+```
+
+Min-Max normalization to column cont2, it rescales the value to a specific range and it is useful when we want to compare the variables that are measured in different units.
+
+```{r}
+min_max <- bank_data$cont2
+min_max <- as.data.frame(min_max)
+```
+
+```{r}
+min_max_prepoc <- preProcess(min_max,method=c("range"))
+min_max_normalize<- predict(min_max_prepoc,min_max)
+```
+
+```{r}
+min_max$min_max_cont2<-min_max_normalize
+summary(min_max$min_max_cont2)
+```
+
+```{r}
+min_max$min_max_cont2<-unlist(min_max$min_max_cont2)
+str(min_max)
+```
+
+Decimal Scaling to cont3, it is used when we want to preserve the magnitude and scale to a common range. Also when we re dealing with large or small number in the data set.
+
+```{r}
+decimal_scale <- bank_data$cont3
+decimal_scale<- as.data.frame(decimal_scale)
+```
+
+```{r}
+decimal_scale$decimal_scale_cont3<- decimal_scale/100
+```
+
+```{r}
+decimal_scale$decimal_scale_cont3<- unlist(decimal_scale$decimal_scale_cont3)
+```
+
+```{r}
+head(decimal_scale)
+```
+
+**c.** Visualize the new distributions for the variables that have been normalized. What has changed from the previous visualization?
+
+z_score normalization cont1 before
+
+```{r}
+ggplot(bank_data,aes(x=cont1))+geom_histogram(color="black",fill="grey")
+```
+
+z_score normalization cont1 after
+
+```{r}
+ggplot(z_score,aes(x=z_cont1))+geom_histogram(color="black",fill="grey")
+```
+
+Min-Max normalization cont2 before.
+
+```{r}
+ggplot(bank_data,aes(x=cont2))+geom_histogram(color="black",fill="grey")
+```
+
+Min-Max normalization cont2 after.
+
+```{r}
+ggplot(min_max,aes(x=min_max_cont2))+geom_histogram(color="black",fill="grey")
+```
+
+decimal-scaling normalization cont3 before.
+
+```{r}
+ggplot(bank_data,aes(x=cont3))+geom_histogram(color="black",fill="grey")
+```
+
+Min-Max normalization cont3 after.
+
+```{r}
+ggplot(decimal_scale,aes(x=decimal_scale_cont3))+geom_histogram(color="black",fill="grey")
+```
+
+we can observer the visualization of before and after normalization and conclude that there is no change in the distribution which means we have preserved the distribution and still reduced the form of a variables to get better analytics.
+
+**d.** Choose one of the numerical variables to work with for this problem. Let's call it v. Create a new variable called v_bins that is a binned version of that variable. This v_bins will have a new set of values like low, medium, high. Choose the actual new values (you don't need to use low, medium, high) and the ranges of v that they represent based on your understanding of v from your visualizations. You can use equal depth, equal width or custom ranges. Explain your choices: why did you choose to create that number of values and those particular ranges?
+
+```{r}
+IQR(bank_data$cont5)
+```
+
+```{r}
+quantiles <- quantile(bank_data$cont5, c(0.25, 0.5, 0.75))
+quantiles
+```
+
+Here, we can observe the quantile range of cont5. We can bin them in 4 range, low -\> medium-low -\> medium-high -\> high (custom ranges)
+
+```{r}
+bins <- c(-Inf, quantiles[1], quantiles[2], quantiles[3], Inf)
+bins
+```
+
+```{r}
+v<-bank_data$cont5
+v<-as.data.frame(v)
+```
+
+Binning , as I learned in tutorial 2.
+
+```{r}
+v <- v %>% mutate(v_bins = cut(v,breaks=bins,
+                            labels=c("low","medium-low","medium-high","high")))
+head(v)
+```
+
+```{r}
+ggplot(v, aes(x=v_bins)) + geom_bar()
+```
+
+we will smooth the above data with the mean of their respective bins.
+
+```{r}
+low <- v %>% 
+  filter(v_bins=="low") %>%
+  mutate(mean_value=mean(v,na.rm = T))
+
+medium.low <- v %>% 
+  filter(v_bins=="medium-low") %>%
+  mutate(mean_value=mean(v,na.rm = T))
+
+medium.high <- v %>% 
+  filter(v_bins=="medium-high") %>%
+  mutate(mean_value=mean(v,na.rm = T))
+
+high <- v %>% 
+  filter(v_bins=="high") %>%
+  mutate(mean_value=mean(v,na.rm = T))
+
+
+v <- bind_rows(list(low, medium.low, medium.high,high))
+```
+
+```{r}
+head(v)
+```
+
+# Problem 2 {#sec-problem-2}
+
+This is the first homework problem using machine learning algorithms. You will perform a straightforward training and evaluation of a support vector machine on the bank data from Problem 1. Start with a fresh copy, but be sure to remove rows with missing values first.
+
+**a.** Apply SVM to the data from Problem 1 to predict approval and report the accuracy using 10-fold cross validation.
+
+starting with a fresh copy.
+
+```{r}
+b <- bank_data
+```
+
+```{r}
+b$approval<- as.factor(b$approval)
+```
+
+```{r}
+class(b$approval)
+```
+
+Evaluation method parameter. using cross validation with 10 folds
+
+```{r}
+train_control_cv = trainControl(method = "cv", number = 10)
+```
+
+Fit the model
+
+```{r}
+svm <- train(approval ~., data = b, method = "svmLinear", 
+              trControl = train_control_cv)
+svm
+```
+
+**b.** Next, use the grid search functionality when training to optimize the C parameter of the SVM. What parameter was chosen and what is the accuracy?
+
+```{r}
+grid <- expand.grid(C = 10^seq(-5,2,0.5))
+```
+
+Here we got the highest accuracy at C= 3.16 x 10\^-3
+
+```{r}
+svm_grid <- train(approval ~., data = b, method = "svmLinear", 
+              trControl = train_control_cv, tuneGrid = grid)
+svm_grid
+```
+
+**c.**Sometimes even if the grid of parameters in (b) includes the default value of C = 1 (used in (a)), the accuracy result will be different for this value of C. What could make that different?\
+Yes, while training the model with SVM, the e1071 package in R sets the default parameter for C = 1 which controls the trade off between maximizing the margin and minimizing errors(increasing accuracy). Even if the default parameter of C=1, it is possible that the optimal value for C identified through tuning process could be different as it depends on the characteristics of data. From the above, we can see the optimal c value is 0.003167 for which there is a highest accuracy.\
+
+# Problem 3 {#sec-problem-3}
+
+We will take SVM further in this problem, showing how it often gets used even when the data are not suitable, by first engineering the numerical features we need. There is a Star Wars dataset in the dplyr library. Load that library and you will be able to see it (head(starwars)). There are some variables we will not use, so first remove films, vehicles, starships and name. Also remove rows with missing values
+
+```{r}
+library(dplyr)
+d = as.data.frame(starwars)
+```
+
+```{r}
+df=d
+head(df)
+```
+
+```{r}
+drop <- c("films", "vehicles", "starships", "name")
+df <- df[,!(names(starwars) %in% drop)]
+```
+
+```{r}
+summary(df)
+```
+
+all NA's are dropperd.
+
+```{r}
+df <- na.omit(df)
+df[rowSums(is.na(df)) > 0, ]
+```
+
+**a.** Several variables are categorical. We will use dummy variables to make it possible for SVM to use these. Leave the gender category out of the dummy variable conversion to use as a categorical for prediction. Show the resulting head.
+
+```{r}
+str(df)
+```
+
+```{r}
+dummy <- dummyVars(gender ~ ., data = df)
+dummies <- as.data.frame(predict(dummy, newdata = df))
+head(dummies)
+```
+
+Adding target variable
+
+```{r}
+dummy_for_svm = dummies
+dummy_for_svm$gender = df$gender
+colnames(dummy_for_svm)
+```
+
+**b.** Use SVM to predict gender and report the accuracy.
+
+```{r message=FALSE}
+preproc = c("center", "scale")
+svm_gender <- train(gender ~ ., data = dummy_for_svm, method = "svmLinear", trControl = train_control_cv,preProcess = preproc)
+svm_gender
+```
+
+**c.** Given that we have so many variables, it makes sense to consider using PCA. Run PCA on the data and determine an appropriate number of components to use. Document how you made the decision, including any graphs you used. Create a reduced version of the data with that number of principle components. Note: make sure to remove gender from the data before running PCA because it would be cheating if PCA had access to the label you will use. Add it back in after reducing the data and show the result.
+
+removing near zero variance variable
+
+```{r}
+dummy_for_pca <- dummies
+nzv <- nearZeroVar(dummies)
+length(nzv)
+dummy_for_pca <- dummy_for_pca[, -nzv]
+head(dummy_for_pca)
+```
+
+```{r}
+#pca object
+star.pca <- prcomp(dummy_for_pca)
+summary(star.pca)
+```
+
+from the graph, we can observe that most of the variance is captured by 3 PC's. We can model our data using 3 PCA
+
+```{r}
+screeplot(star.pca, type = "l") + title(xlab = "PCs")
+```
+
+```{r}
+preProc_pca <- preProcess(dummy_for_pca, method="pca", pcaComp=3)
+star.pc <- predict(preProc_pca,dummy_for_pca)
+```
+
+```{r}
+star.pc$gender<-df$gender
+head(star.pc)
+```
+
+**d.** Use SVM to predict gender again, but this time use the data resulting from PCA. Evaluate the results with a confusion matrix and at least two partitioning methods, using grid search on the C parameter each time.
+
+Train-Test split
+
+```{r}
+set.seed(123)
+index = createDataPartition(y=star.pc$gender, p=0.7, list=FALSE)
+train_set = star.pc[index,]
+test_set = star.pc[-index,]
+```
+
+Building SVM model with the train test partitioning method
+
+```{r}
+#fit the model
+svm_train_test_split <- train(gender ~., data = train_set, method = "svmLinear",tuneGrid=grid)
+#predict on test set
+pred_split <- predict(svm_train_test_split, test_set)
+```
+
+here we can see the tuning parameter was set to 10 by grid search.
+
+```{r}
+svm_train_test_split
+```
+
+```{r}
+#accuracy 
+sum(pred_split == test_set$gender) / nrow(test_set)
+```
+
+Using Bootstrap
+
+```{r}
+train_control_boot = trainControl(method = "boot", number = 100)
+svm_bootstrap <- train(gender ~., data = star.pc, method = "svmLinear", 
+              trControl = train_control_boot,tuneGrid = grid)
+svm_bootstrap
+```
+
+confusion matrix
+
+```{r}
+confusionMatrix(as.factor(test_set$gender), pred_split)
+```
+
+**e.** Whether or not it has improved the accuracy, what has PCA done for the complexity of the model?\
+Here, after apply svm on PCA data, it accuracy got decreased due to reduction in the information of the variables. However, in Tutorial 2, I learned that sometimes the accuracy gets reduced but its is a good practice to have a PCA as it generalize the model. PCA has reduced the complexity of the model.\
+
+# Problem 4 (Bonus) {#sec-problem-4}
+
+Use the Sacremento data from the caret library by running data(Sacremento) after loading caret. This data is about housing prices in Sacramento, California. Remove the zip and city variables.
+
+**a.** Explore the variables to see if they have reasonable distributions and show your work. We will be predicting the type variable -- does that mean we have a class imbalance?
+
+```{r}
+data("Sacramento")
+```
+
+```{r}
+df_sac = as.data.frame(Sacramento)
+head(df_sac)
+```
+
+```{r}
+df_sac <-select(df_sac, -c(city,zip))
+head(df_sac)
+```
+
+```{r}
+str(df_sac)
+```
+
+From the summary we can see, type variable has 3 category. Beds, baths, sqft has nearly normal distribution and price is right skewed.
+
+```{r}
+summary(df_sac)
+```
+
+```{r}
+ggplot(df_sac,aes(x=price)) + geom_histogram(color= "black" , fill="grey") 
+```
+
+Yes , we hace a class imbalance as there are relatively few instances if class Condo and Multi_Family compared to Residential.
+
+```{r}
+table(df_sac$type)
+```
+
+```{r}
+ggplot(df_sac,aes(x=price)) + geom_histogram(color= "black" , fill="grey") + 
+  facet_wrap(~ type)
+```
+
+**b.** There are lots of options for working on the data to try to improve the performance of SVM, including (1) removing other variables that you know should not be part of the prediction, (2) dealing with extreme variations in some variables with smoothing, normalization or a log transform, (3) applying PCA, and (4) to removing outliers. Pick one now and continue.
+
+Here I am trying with (1)removing other variables that you know should not be part of the prediction. the columns latitude and longitude are not needed.
+
+```{r}
+df_sac <-select(df_sac, -c(latitude,longitude))
+head(df_sac)
+```
+
+**c.** Use SVM to predict type and use grid search to get the best accuracy you can. The accuracy may be good, but look at the confusion matrix as well. Report what you find. Note that the kappa value provided with your SVM results can also help you see this. It is a measure of how well the classifier performed that takes into account the frequency of the classes.
+
+```{r}
+set.seed(123)
+index_sac= createDataPartition(y=df_sac$type, p=0.7, list=FALSE)
+train_set_sac = df_sac[index_sac,]
+test_set_sac = df_sac[-index_sac,]
+```
+
+```{r}
+svm_split_sac <- train(type ~., data = train_set_sac, method = "svmLinear", preProcess=preproc
+                       ,tuneGrid=grid)
+pred_split_sac <- predict(svm_split_sac, test_set_sac)
+```
+
+```{r}
+svm_split_sac
+```
+
+```{r}
+sum(pred_split_sac == test_set_sac$type) / nrow(test_set_sac)
+```
+
+Here, we can see the accuracy is high but the value of kappa is 0 which shows the classifier has not performed well on classifying the type. And there was class imbalance also.
+
+```{r}
+confusionMatrix(test_set_sac$type, pred_split_sac)
+```
+
+**d.** Return to (b) and try at least one other way to try to improve the data before running SVM again, as in (c).
+
+```{r}
+df_pca = select(df_sac, -c(type))
+```
+
+```{r}
+sacremento.pca <- prcomp(df_pca)
+summary(sacremento.pca)
+```
+
+```{r}
+screeplot(sacremento.pca, type = "l") + title(xlab = "PCs")
+```
+
+```{r}
+preProc_sac <- preProcess(df_pca, method="pca", pcaComp=2)
+sacramento.pc <- predict(preProc_sac, df_pca)
+sacramento.pc$type<-df_sac$type
+```
+
+```{r}
+svm_split_sac_pc <- train(type ~., data = sacramento.pc, method = "svmLinear",trControl = train_control_cv, tuneGrid=grid)
+svm_split_sac_pc         
+```
+
+We can observe the accuracy and kappa which is same and the classifier is not classifying the minority class.
+
+Create a copy of the data that includes all the data from the two smaller classes, plus a small random sample of the large class (you can do this by separating those data with a filter, sampling, then attaching them back on). Check the distributions of the variables in this new data sample to make sure they are reasonably close to the originals using visualization and/or summary statistics. We want to make sure we did not get a strange sample where everything was cheap or there were only studio apartments, for example. You can rerun the sampling a few times if you are getting strange results. If it keeps happening, check your process.
+
+data from smaller classes
+
+```{r}
+small = df_sac[df_sac$type=="Condo" | df_sac$type=="Multi_Family",]
+```
+
+data from smaller classes
+
+```{r}
+large= df_sac[df_sac$type=="Residential", ]
+```
+
+sample data from large class
+
+```{r}
+large_sample = large[sample(nrow(large),40),] 
+```
+
+combining data
+
+```{r}
+new_data = rbind(small,large_sample)
+summary(new_data)
+```
+
+```{r}
+ggplot(new_data,aes(x=price)) + geom_histogram(color= "black" , fill="grey") + 
+  facet_wrap(~ type)
+```
+
+```{r}
+set.seed(123)
+index_new_data= createDataPartition(y=new_data$type, p=0.7, list=FALSE)
+train_set_new = new_data[index_new_data,]
+test_set_new = new_data[-index_new_data,]
+```
+
+```{r}
+svm_split_new_data <- train(type ~., data = train_set_new, method = "svmLinear", preProcess=preproc, tuneGrid=grid)
+pred_split_new <- predict(svm_split_new_data, test_set_new)
+```
+
+```{r}
+svm_split_new_data
+```
+
+```{r}
+sum(pred_split_new == test_set_new$type) / nrow(test_set_new)
+```
+
+```{r}
+confusionMatrix(test_set_new$type, pred_split_new)
+```
+
+after sampling the entire data set and making type variable near to balance, we can observe its accuracy and confusion matrix report, which tells us how the accuracy got increased.\
+
+# Problem 5 (Bonus) {#sec-problem-5}
+
+To understand just how much different subsets can differ, create a 5 fold partitioning of the cars data included in R (mtcars) and visualize the distribution of the gears variable across the folds. Rather than use the fancy trainControl methods for making the folds, create them directly so you actually can keep track of which data points are in which fold. This is not covered in the tutorial, but it is quick. Here is code to create 5 folds and a variable in the data frame that contains the fold index of each point. Use that resulting data frame to create your visualization.
+
+```{r}
+mycars <- mtcars
+mycars$folds = 0
+flds = createFolds(1:nrow(mycars), k=5, list=TRUE)
+```
+
+```{r}
+ for (i in 1:5) 
+ { 
+   mycars$folds[flds[[i]]] = i
+  }
+```
+
+```{r}
+ggplot(mycars, aes(folds, gear)) + geom_point() + geom_smooth(method = lm)
+```

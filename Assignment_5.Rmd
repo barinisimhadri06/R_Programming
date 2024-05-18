@@ -1,0 +1,668 @@
+---
+title: "Assignment_5"
+author: "Barini Simhadri"
+date: "11-16-2023"
+output: pdf_document
+---
+
+CONTENTS OF THE PROJECT\
+[a. Data gathering and integration](#sec-Data gathering and integration)\
+[b. Data Cleaning](#sec-Data Cleaning)\
+[c. Data Exploration](#sec-Data Exploration)\
+[d. Data Preprocessing](#sec-Data Preprocessing)\
+[e. Clustering](#sec-Clustering)\
+[f. Classification](#sec-Classification)\
+[g. Evaluation](#sec-Evaluation)\
+[h. Report](#sec-Report)\
+[i. Reflection](#sec-Reflection)\
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE)
+```
+
+# a. Data gathering and integration {#sec-Data gathering and integration}
+
+Description of Dataset:
+The Diabetes Prediction Dataset was utilized for this study, and it contains a comprehensive collection of medical and demographic data from individuals, as well as their diabetes status (positive or negative).  negative). The information includes various important characteristics such as age, gender, body mass index (BMI), and height.Hypertension, heart disease, smoking history, HbA1c level, and blood glucose level are all factors to consider.
+
+Goal:
+The study's objective is to develop a credible model for predicting diabetes risk in patients based on their genetics.medical history and demographic information. These projections can be incredibly beneficial to healthcare practitioners.in identifying persons at risk of developing diabetes. Pharmaceutical companies are particularly interested.These projections are useful for client profiling and developing individualized treatment plans.
+
+Importing necessary libraries
+
+```{r}
+library(rpart)
+library(tidyverse)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(rattle)
+library(ROSE)
+library(moments)
+library(caret)
+library(stats)
+library(factoextra)
+library(e1071)
+```
+
+Read the data
+
+```{r}
+df = read.csv2("C:/Users/bunty/Desktop/Fundaproject/diabetes.csv", header = T, sep = ",")
+```
+
+
+```{r}
+head(df)
+```
+
+```{r}
+str(df)
+```
+
+```{r}
+summary(df)
+```
+
+# b. Data Cleaning {#sec-Data Cleaning}
+
+Some of the columns are character and integer datatypes, which must be transformed for age to integer, bmi and HbA1c_level to numeric, and our goal variable to factor 0/1.
+
+```{r}
+str(df)
+```
+
+```{r}
+summary(df)
+```
+
+Based on the data above, we may conclude that there is a significant class imbalance, which will provide a challenge to our model's construction. In order to improve accuracy, we will attack this challenge further in data exploration and sample out the data to smaller datasets. Furthermore, the maximum values of BMI and Blood Glucose Level appear to be too high for now; we must hunt for outliers later.
+Checking the data set for missing values.
+
+```{r}
+table(df$diabetes)
+```
+
+```{r}
+df[rowSums(is.na(df)) > 0, ]
+```
+
+we can see, there are no missing values.
+Checking for any duplicate number of rows. We can see there are 3888 duplicate rows.
+
+```{r}
+duplicate = sum(duplicated(df))
+duplicate
+```
+
+Removing all the duplicate rows
+
+```{r}
+df <- subset(df, !duplicated(df))
+dim(df)
+```
+
+```{r}
+table(df$gender)
+```
+
+removing unnecessary gender = Other.
+
+```{r}
+df = df[df$gender!="Other", ]
+```
+
+There are 5 categories for smoking history with No info and never has greater percentage.we can reduce it to 3 categories for simplicity
+
+```{r}
+table(df$smoking_history)
+```
+
+It is reduced to 3 categories.
+
+```{r}
+df<- df%>%
+mutate(smoking_history = case_when(
+smoking_history %in% c("never", "No Info") ~ "non-smoker",
+smoking_history %in% c("current") ~ "current",
+smoking_history %in% c("ever","former","not current") ~ "past_smoker"
+))
+table(df$smoking_history)
+```
+
+# c. Data Exploration {#sec-Data Exploration}
+
+We will visualize the data set with different plots. Numerical - age, bmi, HbA1c_level, blood_glucose_level Categorical - hypertension, heart_disease,diabetes, gender Analysis of age.
+
+```{r}
+summary(df$age)
+```
+
+```{r}
+ggplot(df,aes(x=age)) + geom_histogram(aes(y = after_stat(density)),color = "black", fill = "cornflower")
+```
+
+```{r}
+skewness(df$age)
+```
+
+```{r}
+boxplot(df$age)
+```
+
+there are No missing values, No outliers ,Data is very slightly left skewed. Analysis of bmi
+
+```{r}
+summary(df$bmi)
+```
+
+```{r}
+ggplot(df,aes(x=bmi)) + geom_histogram(color = "black", fill = "cornflowerblue")+geom_vline(aes(xinter))
+```
+
+```{r}
+skewness(df$bmi)
+```
+
+```{r}
+boxplot(df$bmi)
+```
+
+there are outliers in bmi. We can analyze further. Below we can see, there are around 6000 data points which are outliers. we will remove it from the dataset
+
+```{r}
+sum(df$bmi>40 | df$bmi<15)
+```
+
+```{r}
+df= subset(df,!(df$bmi>40 | df$bmi<15))
+```
+
+```{r}
+boxplot(df$bmi)
+```
+
+```{r}
+summary(df$bmi)
+```
+
+There are many data points where the BMI is same for all of them i.e, 27.32
+
+```{r}
+age2 = df[df$bmi == 27.32,]
+head(age2)
+```
+
+It also has some points where age is less than 10 and BMI is 27.32 which is not possible. We will remove such points.
+
+```{r}
+age1 = df[df$age<10 & df$bmi == 27.32,]
+head(age1)
+```
+
+```{r}
+df = subset(df,!(df$age<10 & df$bmi == 27.32))
+```
+
+Analysis of HbA1c_level
+
+```{r}
+summary(df$HbA1c_level)
+```
+
+```{r}
+boxplot(df$HbA1c_level)
+```
+
+```{r}
+sum(df$HbA1c_level>8.5)
+```
+
+Removing outliers.
+
+```{r}
+df = subset(df,!(df$HbA1c_level>8.5))
+```
+
+plot after removing outliers
+
+```{r}
+boxplot(df$HbA1c_level)
+```
+
+Analysis of Blood glucose level
+
+```{r}
+summary(df$blood_glucose_level)
+```
+
+Outliers detected
+
+```{r}
+boxplot(df$blood_glucose_level)
+```
+
+```{r}
+sum(df$blood_glucose_level>245)
+```
+
+```{r}
+df = subset(df,!(df$blood_glucose_level>245))
+```
+
+```{r}
+boxplot(df$blood_glucose_level)
+```
+
+```{r}
+skewness(df$blood_glucose_level)
+```
+
+Positvely Skewed ,Has Outliers and removed it, 50% people fall in the 100 to 160 range
+Analysis of categorical columns
+
+```{r}
+ggplot(df,aes(x=gender)) + geom_bar(fill="cornflowerblue")
+```
+
+```{r}
+ggplot(df,aes(x=hypertension)) + geom_bar(fill="cornflowerblue")
+```
+
+```{r}
+ggplot(df,aes(x=heart_disease)) + geom_bar(fill="cornflowerblue")
+```
+
+```{r}
+ggplot(df,aes(x=smoking_history)) + geom_bar(fill="cornflowerblue")
+```
+
+```{r}
+ggplot(df,aes(x=diabetes)) + geom_bar(fill="cornflowerblue")
+```
+
+```{r}
+ggplot(df,aes(x=diabetes,y=age,fill=diabetes))+geom_boxplot()
+```
+
+Diabetes is more common among elderly adults.The diabetes risk curve begins to climb gradually in your 30s and reaches a peak around the age of 60.This is consistent with real-world evidence.
+
+```{r}
+ggplot(df,aes(x=age)) + geom_histogram(color="black",fill="grey")+facet_wrap(~diabetes)
+```
+
+```{r}
+ggplot(df,aes(x=diabetes,y=bmi,fill=diabetes))+geom_boxplot()
+```
+
+```{r}
+ggplot(df,aes(x=diabetes,y=blood_glucose_level,fill=diabetes))+geom_boxplot()
+```
+
+With increase in blood glucose level, the chance of diabetes increases the people with diabetes have a blood glucose level of around 160 on average.
+
+```{r}
+ggplot(df,aes(x=diabetes,y=HbA1c_level,fill=diabetes))+geom_boxplot()
+```
+
+With increase in HbA1c level, the chance of diabetes increases .People who have diabetes have a median
+HbA1c value of around 6.7
+
+```{r}
+library(corrplot)
+matrix1 <- cor(select_if(df,is.numeric))
+round(matrix1,3)
+```
+
+```{r}
+corrplot(matrix1, method="number")
+```
+
+```{r}
+library(GGally)
+d_num = select_if(df,is.numeric)
+ggpairs(d_num)
+```
+
+The scatter matrix view demonstrates the connection between the variables in the data set. This viewpoint is important because it helps us to find the association that would otherwise be difficult to observe when looking at the distribution.We can see that the variables have a positive association.
+
+# d. Data Preprocessing {#sec-Data Preprocessing}
+
+converting data into dummy variables as there are categorical values in the data set.
+
+```{r}
+dff<- ovun.sample(diabetes~., data=df, method = "both",
+p = 0.5,
+seed = 222,
+N = 800)$data
+```
+
+```{r}
+table(dff$diabetes)
+
+```
+
+```{r}
+dummy <- dummyVars(diabetes~., data = dff)
+dummies <- as.data.frame(predict(dummy, newdata = dff))
+head(dummies)
+```
+
+# e. Clustering {#sec-Clustering}
+
+```{r}
+predictors = dummies
+preproc <- preProcess(predictors, method=c("center", "scale"))
+predictors <- predict(preproc, predictors)
+```
+
+```{r}
+fviz_nbclust(predictors, kmeans, method = "wss")
+```
+
+```{r}
+fviz_nbclust(predictors, kmeans, method = "silhouette")
+```
+
+from the above 2 graphs, knee suggest k = 5 and silhouette suggest k = 2. We will use k = 5 and fit the data.
+
+```{r}
+# Fit the data
+fit <- kmeans(predictors, centers = 5, nstart = 25)
+# Display the kmeans object information
+fit
+```
+
+```{r}
+fviz_cluster(fit, data = predictors)
+```
+
+Fit in model with 2 clusters
+
+```{r}
+# Fit the data
+fit1 <- kmeans(predictors, centers = 2, nstart = 25)
+# Display the kmeans object information
+fit1
+```
+
+```{r}
+fviz_cluster(fit1, data = predictors)
+```
+
+PCA projection
+
+```{r}
+pca = prcomp(predictors)
+rotated_data = as.data.frame(pca$x)
+```
+
+```{r}
+rotated_data$diabetes = dff$diabetes
+```
+
+```{r}
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = diabetes)) + geom_point(alpha = 0.3)
+```
+
+```{r}
+rotated_data$Clusters = as.factor(fit$cluster)
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Clusters)) + geom_point()
+```
+
+Using HAC to cluster the data
+
+```{r}
+#Euclidean and complete linkage:
+dist_mat <- dist(predictors, method = 'euclidean')
+# Determine assembly/agglomeration method and run hclust
+hfit1 <- hclust(dist_mat, method = 'complete')
+plot(hfit1)
+```
+
+```{r}
+h1 <- cutree(hfit1, k=5)
+```
+
+Comparison of clusters from Kmeans and HAC
+
+```{r}
+result <- data.frame(Type = dff$diabetes, HAC1 = h1, Kmeans = fit$cluster)
+result %>% group_by(HAC1) %>% select(HAC1, Type) %>% table()
+```
+
+```{r}
+result %>% group_by(Kmeans) %>% select(Kmeans, Type) %>% table()
+```
+
+# f. Classification {#sec-Classification}
+
+SVM classifier.
+
+```{r}
+svm_data = dummies
+svm_data$diabetes = dff$diabetes
+```
+
+```{r}
+# To get the same "random" results every run we need to set the randomizer seed
+set.seed(123)
+# Partition the data
+index = createDataPartition(y=svm_data$diabetes, p=0.7, list=FALSE)
+# Everything in the generated index list
+train_set = svm_data[index,]
+# Everything except the generated indices
+test_set = svm_data[-index,]
+```
+
+```{r}
+svm_split <- train(diabetes ~., data = train_set, method = "svmLinear")
+svm_split
+```
+
+```{r}
+pred_split <- predict(svm_split, test_set)
+```
+
+```{r}
+confusionMatrix(test_set$diabetes,pred_split)
+```
+
+Accuracy is 82% with C=1.
+Grid search for SVM
+
+```{r}
+train_control= trainControl(method = "cv", number = 10)
+grid <- expand.grid(C = 10^seq(-5, 2, 0.5))
+
+svm_grid <- train(diabetes ~., data = svm_data, method = "svmLinear",
+              trControl = train_control, tuneGrid = grid)
+# View grid search result
+svm_grid
+```
+
+using grid search, we got greater accuracy then previous 0.8374937.
+
+```{r}
+pred_split1 <- predict(svm_grid, svm_data)
+confusionMatrix(as.factor(svm_data$diabetes),pred_split1)
+```
+
+Using grid search, prediction accuracy got improved, setting the tuning paramter to 0.01
+Decision Tree Classifier.
+
+```{r}
+set.seed(94)
+# Fit the model
+tree1 <- train(diabetes ~., data = dff, method = "rpart1SE", trControl = train_control)
+tree1
+```
+
+```{r}
+pred_tree <- predict(tree1, dff)
+confusionMatrix(dff$diabetes, pred_tree)
+```
+
+```{r}
+fancyRpartPlot(tree1$finalModel, caption = "")
+```
+
+Tuning hyperparameters and checking for increasing accuracy on test and train split
+
+```{r}
+hypers = rpart.control(minsplit = 5000, maxdepth = 4, minbucket = 2500)
+index = createDataPartition(y=dff$diabetes, p=0.7, list=FALSE)
+train_set1 = dff[index,]
+test_set1 = dff[-index,]
+```
+
+```{r}
+tree2 <- train(diabetes ~., data = train_set1, control = hypers, method = "rpart1SE", trControl = train_control)
+tree2
+```
+
+Here, we can observe that the train/test split and parameter tweaking are not operating properly. It provides less precision, making it unsuitable for usage.
+
+```{r}
+var_imp <- varImp(tree1, scale = FALSE)
+var_imp
+```
+
+Feature Selection Relevance analysis (variable importance score)
+
+```{r}
+plot(var_imp)
+```
+
+Taking first 4 important predictors and fitting the model.
+
+```{r}
+new_data = select(dff,c("HbA1c_level","age","blood_glucose_level","diabetes"))
+head(new_data)
+```
+
+```{r}
+index = createDataPartition(y=new_data$diabetes, p=0.7, list=FALSE)
+train_set2 = new_data[index,]
+test_set2 = new_data[-index,]
+```
+
+```{r}
+tree_new <- train(diabetes ~., data = train_set2, method = "rpart1SE", trControl = train_control)
+tree_new
+```
+
+```{r}
+pred_tree_new <- predict(tree_new, test_set2)
+confusionMatrix(test_set2$diabetes, pred_tree_new)
+```
+
+```{r}
+fancyRpartPlot(tree_new$finalModel, caption = "")
+```
+
+Reducing features boosts the accuracy to 0.87 following feature relevance analysis, however the complexity of the graph remains the same in this instance. When comparing classifier accuracy, the Decision Tree classifier outperforms the SVM classifier.
+
+# g. Evaluation {#sec-Evaluation}
+
+From the above 2 classifier, Evaluating Decision tree classifier.
+
+```{r}
+cm=confusionMatrix(test_set2$diabetes, pred_tree_new)
+cm
+```
+
+```{r}
+m = cm$byClass
+metrics <- as.data.frame(m)
+metrics
+```
+
+Calculating Recall Manually and checking it
+
+```{r}
+TP = cm$table[1,1]
+FN = cm$table[2,1]
+recall = TP/(TP+FN)
+recall
+```
+
+```{r}
+metrics["Recall",]
+```
+
+Yes it's correct.
+Calculating Precision Manually.
+
+```{r}
+FP = cm$table[1,2]
+precision = TP/(TP+FP)
+precision
+```
+
+```{r}
+metrics["Precision",]
+```
+
+```{r}
+plot(roc_obj, print.auc=TRUE)
+```
+
+In a ROC curve, an AUC (Area Under the Curve) of 0.88 suggests that the classifier performs relatively well in differentiating between positive and negative cases. It implies that in the majority of circumstances, the classifier will score a randomly chosen positive instance higher than a randomly picked negative instance.
+
+# h. Report {#sec-Report}
+
+About the data set:
+The Diabetes Prediction Dataset was utilized for this study, and it contains a comprehensive collection of medical and demographic data from individuals, as well as their diabetes status (positive or negative). Age, gender, body mass index (BMI), hypertension, heart disease, smoking history, HbA1c level, and blood glucose level are all included in the dataset.
+
+Description of columns:
+gender: Gender refers to the classification of individuals as male or female. age: Age represents the number of years a person has lived since birth. hypertension: Hypertension, often referred to as high blood pressure, is a medical condition characterized by persistently elevated blood pressure in the arteries.  heart_disease: Heart disease refers to a range of conditions affecting the heart, such as coronary artery disease, heart failure, or heart rhythm disorders. smoking_history: Smoking history indicates whether an individual has a
+past or present habit of smoking tobacco products. bmi: Body Mass Index (BMI) is a measure of body fat based on an individual’s weight and height. HbA1c_level: HbA1c (Hemoglobin A1c) level is a laboratory test that measures the average blood sugar (glucose) levels over the past 2-3 months. blood_glucose_level: Blood glucose level refers to the concentration of glucose (sugar) in the bloodstream. diabetes: Diabetes is a chronic medical condition characterized by elevated blood sugar levels due to insufficient insulin production or ineffective use of insulin in the body.
+
+Data Cleaning:
+Data cleaning for a dataset often consists of many stages to guarantee that the data is correct, consistent, and suitable for analysis. There were no null values or missing values in the dataset, however certain datatypes were incorrect and were updated. Aside from that, 3888 duplicate rows were discovered and cleansed. The smoking_history column had five categories, which were reduced to three for simplicity. 
+
+Data exploration (also known as exploratory data analysis):
+Numerical - age, bmi, HbA1c_level, blood_glucose_level Categorical - hypertension, heart_disease,diabetes, gender.
+From the summary of the data set, it was observed that there might be some outliers present in bmi,HbA1c_level and blood_glucose_level, using boxplot and IQR for each, outliers were detected and were removed from the dataset.
+
+Univariate Analysis:
+Age - there are no missing values, no outliers, and the data is slightly slanted to the left. bmi - Data is skewed, 25% of persons have a BMI of exactly 27.32, and around 6000 data points are outliers (6% of total data). It was also discovered that children aged 10 had a BMI of 27.32, which is irrelevant. HbA1c_level - Although there were few outliers, most persons fell in the 5 - 6.6 range, which is considered healthy. blood_glucose_level - Positively skewed, has outliers, 50% of persons fall between 100 and 160. Diabetes - there is a class imbalance.
+
+Bivariate Analysis:
+Age vs diabetes - Diabetes tends to affect older people generally.It curve of diabetes tends to slowly rise when you hit 30s and the probability is maximum when you are aged around 60.This tend to fit in well with the real world data.
+blood_glucose_level vs diabetes - With increase in blood glucose level, the chance of diabetes increases the people with diabetes have a blood glucose level of around 160 on average. HbA1c_level - with increase in HbA1c level, the chance of diabetes increases.People who have diabetes have
+a median HbA1c value of around 6.7. Coorelation Matrix - The scatter matrix view gives the relationship between each variables in the data set. This view is useful because it allows us to identify the correlation which would be difficult to see looking at the distribution. We can observe, there is a positive correlation between the variables.
+
+Data Preparation and Predictive Analysis:
+Because the data set contained categorical columns, it was preferable to turn them into dummy variables for cluster analysis and further SVM classifier application. There were two classifiers utilized. 1. SVM Classifier - SVMlinear with data separated into train and test, Accuracy - 82% SVMlinear with grid search and 10-fold CV, 83% (improved) accuracy 2.Decision Tree - rpart1SE with 10 fold CV and 87% accuracy The feature significance analysis identified HbA1c_level, blood_glucose_level, and BMI as the most important variables in predicting Diabetes, with a modest improvement in Accuracy.
+In this scenario, Decision Tree outperforms SVM as a classifier.
+
+Evaluation:
+These are the metrics we get: Sensitivity 0.9117647
+Specificity 0.8248175
+Pos Pred Value 0.7948718
+Neg Pred Value 0.9262295
+Precision 0.7948718
+Recall 0.9117647
+F1 0.8493151
+Prevalence 0.4267782
+Detection Rate 0.3891213
+Detection Prevalence 0.4895397
+
+ROC curve : AUC (Area Under the Curve) of 0.88 on a ROC curve suggests that the classifier performs pretty well in discriminating between positive and negative cases. It implies that in the majority of circumstances, the classifier will score a randomly chosen positive instance higher than a randomly picked negative instance.
+
+Key takeaways :
+There were several aspects in this data collection and during the analysis that I found fascinating.First, I learned the right use case for each and every component from all of the lectures and tutorials in the to the real world problems. Diabetes data collection contained a lot of extraneous stuff that took a long time to clean and make sure it was suitable, as it took 70-80% of the time in analysis and cleaning. Furthermore, other classifiers can be utilized, and in this case, SVM and Decision performed well for predicting, and the metrics provided helpful information about the prediction. Tuning the parameter may not always
+yield better results; we must experiment extensively in order to achieve optimal accuracy. Finally, there is evaluating and ROC curve results the overall performance of model.
+
+# i. Reflection {#sec-Reflection}
+
+Thanks to Prof. Roselyne Tchoua,I have gained extensive knowledge of the principles of Data Science and Machine Learning.including data cleansing, data exploration, evaluation, and model construction. The new thing I learnt from the tutorials is the R programming language, which was completely new to me because I was already familiar with the principles of Python, pandas, and numpy. Some of the specific skills I learned: 
+Data Manipulation and Cleaning: learned techniques for cleaning and preprocessing data, handling missing values, dealing with outliers, and transforming data to make it suitable for analysis.Exploratory Data Analysis: Analyzing data, perform descriptive statistics, visualize data using graphs and charts, patterns and insights from data.
+Machine Learning Algorithms: machine learning algorithms, such as regression, classification, clustering, and dimensionality reduction. Learned how to select appropriate algorithms, train models, and evaluate their performance. 
+Model Evaluation and Validation: learned techniques to evaluate and validate machine learning models, including cross-validation, model selection, and performance metrics such as accuracy, precision, recall, and F1-score. And some ethical consideration such as privacy, bias, and fairness.
+thank you for your teaching and mentorship. Your course has had a profound impact on me, and I am grateful for the opportunity to learn from you.
+
+Thank You,
+Barini Simhadri

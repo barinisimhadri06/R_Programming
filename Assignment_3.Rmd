@@ -1,0 +1,581 @@
+---
+title: "Assignment_3"
+author: "Barini Simhadri"
+date: "10-16-2023"
+output: pdf_document
+---
+
+Jump to -\
+[Problem 1](#sec-problem-1)\
+[Problem 2](#sec-problem-2)\
+[Problem 3](#sec-problem-3)\
+[Problem 4](#sec-problem-4)\
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE)
+```
+
+Importing necessary libraries
+
+```{r}
+library(rpart)
+library(tidyverse)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(rattle)
+```
+
+```{r}
+data = read.csv2("C:/Users/bunty/Desktop/funda/week_5/breast_cancer_updated.csv" , header = T, sep = ",")
+d = data
+```
+
+# Problem 1 {#sec-problem-1}
+
+For this problem, you will perform a straightforward training and evaluation of a decision tree, as well as generate rules by hand. Load the breast_cancer_updated.csv data. These data are visual features computed from samples of breast tissue being evaluated for cancer1. As a preprocessing step, remove the IDNumber column and exclude rows with NA from the dataset.
+
+```{r}
+summary(d)
+```
+
+Removing IDNumber column
+
+```{r}
+d = select(d, -c(IDNumber))
+```
+
+dropping rows with all NA's and it shows 0 after dropping all.
+
+```{r}
+d = na.omit(d)
+d[rowSums(is.na(d)) > 0, ]
+```
+
+**a.** Apply decision tree learning (use rpart) to the data to predict breast cancer malignancy (Class) and report the accuracy using 10-fold cross validation.
+
+```{r}
+ggplot(d,aes(x=Class)) + geom_bar()
+```
+
+```{r}
+#evaluation method
+train_control = trainControl(method = "cv", number = 10)
+# Fit the model
+tree1 <- train(Class ~., data = d, method = "rpart", trControl = train_control)
+# Evaluate fit
+tree1
+```
+
+```{r}
+pred_tree <- predict(tree1, d)
+
+# Generate confusion matrix for the test set
+confusionMatrix(as.factor(d$Class), pred_tree)
+```
+
+**b.** Generate a visualization of the decision tree.
+
+```{r}
+fancyRpartPlot(tree1$finalModel, caption = "")
+```
+
+generated result using if-then and added the result in separate column.
+
+```{r}
+n=1
+for(n in 1:nrow(d)){
+  x <- d$UniformCellSize[n]
+  y <- d$UniformCellShape[n]
+  if(x & y >= 2.5){
+            result="malignant"
+        } else if(x >= 2.5 & y < 2.5){
+            result="Bening"
+        }else {
+            result="Bening"
+        }
+  d[n,"ifthenresult"]<- result
+  n=n+1
+}
+```
+
+```{r}
+head(d)
+```
+
+# Problem 2 {#sec-problem-2}
+
+In this problem you will generate decision trees with a set of parameters. You will be using the storms data, a subset of the NOAA Atlantic hurricane database2 , which includes the positions and attributes of 198 tropical storms (potential hurricanes), measured every six hours during the lifetime of a storm. It is part of the dplyr library, so load the library and you will be able to access it. As a preprocessing step, view the data and make sure the target variable (category) is converted to a factor (as opposed to character string).
+
+```{r}
+head(storms)
+storm_data <- storms
+```
+
+```{r}
+summary(storm_data)
+```
+
+```{r}
+str(storm_data)
+```
+
+```{r}
+storm_data$category = as.factor(storm_data$category)
+str(storm_data$category)
+```
+
+```{r}
+storm_data = na.omit(storm_data)
+```
+
+**a.** Build a decision tree using the following hyperparameters, maxdepth=2, minsplit=5 and minbucket=3. Be careful to use the right method of training so that you are not automatically tuning the cp parameter, but you are controlling the aforementioned parameters specifically. Use cross validation to report your accuracy score. These parameters will result in a relatively small tree.
+
+Set hyper parameters to controls minsplit, maxdepth, and minbucket
+
+```{r}
+hypers = rpart.control(minsplit =  5, maxdepth = 2, minbucket = 3)
+```
+
+We can see the performance of our model.
+
+```{r}
+#fit the model
+tree_storm <- train(category ~., data = storm_data, control = hypers, trControl =
+    train_control, method = "rpart1SE")
+
+#evaluate
+tree_storm
+```
+
+```{r}
+fancyRpartPlot(tree_storm$finalModel, caption = "")
+```
+
+```{r}
+pred_tree_storm = predict(tree_storm,storm_data)
+confusionMatrix(storm_data$category,pred_tree_storm)
+```
+
+**b.** To see how this performed with respect to the individual classes, we could use a confusion matrix. We also want to see if that aspect of performance is different on the train versus the test set. Create a train/test partition. Train on the training set. By making predictions with that model on the train set and on the test set separately, use the outputs to create two separate confusion matrices, one for each partition. Remember, we are testing if the model built with the training data performs differently on data used to train it (train set) as opposed to new data (test set). Compare the confusion matrices and report which classes it has problem classifying. Do you think that both are performing similarly and what does that suggest about overfitting for the model?
+
+partitioning of data.
+
+```{r}
+index = createDataPartition(y=storm_data$category, p=0.7, list=FALSE)
+```
+
+```{r}
+train_set = storm_data[index,]
+test_set = storm_data[-index,]
+
+```
+
+```{r}
+#fit the model
+tree3 <- train(category ~., data = train_set, control = hypers, trControl =
+    train_control, method = "rpart1SE")
+
+tree3
+```
+
+```{r}
+pred_tree_train = predict(tree3,train_set)
+pred_tree_test = predict(tree3,test_set)
+```
+
+```{r}
+confusionMatrix(train_set$category,pred_tree_train)
+```
+
+```{r}
+confusionMatrix(test_set$category,pred_tree_test)
+```
+
+From above two confusion matrices , we can see the accuracy is almost same for predicting both on train and set set which indicates there is no overfitting. The model misclassify to predict some intances of class 3 and 5.
+
+# Problem 3 {#sec-problem-3}
+
+This is will be an extension of Problem 2, using the same data and class. Here you will build many decision trees, manually tuning the parameters to gain intuition about the tradeoffs and how these tree parameters affect the complexity and quality of the model. The goal is to find the best tree model, which means it should be accurate but not too complex that the model overfits the training data. We will achieve this by using multiple sets of parameters and creating a graph of accuracy versus complexity for the training and the test sets (refer to the tutorial). This problem may require a significant amount of effort because you will need to train a substantial number of trees (at least 10).
+
+**a.** Partition your data into 80% for training and 20% for the test data set
+
+```{r}
+index = createDataPartition(y=storm_data$category, p=0.8, list=FALSE)
+train_set = storm_data[index,]
+test_set = storm_data[-index,]
+```
+
+```{r}
+str(test_set)
+```
+
+**b.** Train at least 10 trees using different sets of parameters, through you made need more. Create the graph described above such that you can identify the inflection point where the tree is overfitting and pick a high-quality decision tree. Your strategy should be to make at least one very simple model and at least one very complex model and work towards the center by changing different parameters. Generate a table that contains all of the parameters (maxdepth, minsplit, minbucket, etc) used along with the number of nodes created, and the training and testing set accuracy values. The number of rows will be equal to the number of sets of parameters used. You will use the data in the table to generate the graph. The final results to be reported for this problem are the table and graph.
+
+Implementing this question as I learned from the tutorial 6.
+
+Tree 1
+
+```{r}
+# Initialize cross validation
+train_control = trainControl(method = "cv", number = 10)
+
+# tree 1
+hypers = rpart.control(minsplit =  2, maxdepth = 1, minbucket = 2)
+tree1 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree1, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree1, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree1$finalModel$frame)
+
+comp_tbl <- data.frame("Nodes" = nodes, "TrainAccuracy" = a_train, "TestAccuracy" = a_test,
+                       "MaxDepth" = 1, "Minsplit" = 2, "Minbucket" = 2)
+```
+
+Tree 2
+
+```{r}
+hypers = rpart.control(minsplit =  5, maxdepth = 2, minbucket = 5)
+tree2 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree2, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree2, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree2$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,2,5,5))
+```
+
+Tree 3
+
+```{r}
+hypers = rpart.control(minsplit =  50, maxdepth = 3, minbucket = 50)
+tree3 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree3, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree3, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree3$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,3,50,50))
+```
+
+Tree 4
+
+```{r}
+hypers = rpart.control(minsplit =  100, maxdepth = 4, minbucket = 100)
+tree4 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree4, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree4, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree4$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,4,100,100))
+```
+
+Tree 5
+
+```{r}
+hypers = rpart.control(minsplit =  100, maxdepth = 5, minbucket = 100)
+tree5 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree5, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree5, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree5$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,5,100,100))
+```
+
+Tree 6
+
+```{r}
+hypers = rpart.control(minsplit =  1000, maxdepth = 4, minbucket = 1000)
+tree6 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree6, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree6, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree6$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,4,1000,1000))
+```
+
+Tree 7
+
+```{r}
+hypers = rpart.control(minsplit =  2000, maxdepth = 5, minbucket = 2000)
+tree7 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree7, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree7, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree7$finalModel$frame)
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,5,2000,2000))
+```
+
+Tree 8
+
+```{r}
+hypers = rpart.control(minsplit =  5000, maxdepth = 8, minbucket = 5000)
+tree8 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree8, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree8, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree8$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,8,5000,5000))
+```
+
+Tree 9
+
+```{r}
+hypers = rpart.control(minsplit =  10000, maxdepth = 12, minbucket = 10000)
+tree9 <- train(category ~., data = train_set, control = hypers, 
+               trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree9, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree9, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree9$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,12,10000,10000))
+```
+
+Tree 10
+
+```{r}
+hypers = rpart.control(minsplit =  10000, maxdepth = 25, minbucket = 10000)
+tree10 <- train(category ~., data = train_set, control = hypers, 
+                trControl = train_control, method = "rpart1SE")
+
+# Training set
+pred_tree <- predict(tree10, train_set)
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test set
+pred_tree <- predict(tree10, test_set)
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+a_train <- cfm_train$overall[1]
+a_test <- cfm_test$overall[1]
+nodes <- nrow(tree10$finalModel$frame)
+
+
+
+comp_tbl <- rbind(comp_tbl,c(nodes,a_train,a_test,25,10000,10000))
+
+comp_tbl
+```
+
+```{r}
+#plot the graph
+ggplot(comp_tbl, aes(x=Nodes)) +
+      geom_point(aes(y = TrainAccuracy), color = "red") +
+      geom_point(aes(y = TestAccuracy), color="blue") +
+      ylab("Accuracy")
+```
+
+```{r}
+ggplot(comp_tbl, aes(x=Nodes)) + 
+  geom_line(aes(y = TrainAccuracy), color = "red") + 
+  geom_line(aes(y = TestAccuracy), color="blue") +
+  ylab("Accuracy")
+```
+
+**c.** Identify the final choice of model, list it parameters and evaluate with a the confusion matrix to make sure that it gets balanced performance over classes. Also get a better accuracy estimate for this tree using cross validation.
+
+From the above, we can see the Model Tree3 has the highest accuracy with maxdepth = 3, minsplit = 50 and minbucket =50.
+
+```{r}
+#tree 3
+hypers = rpart.control(minsplit =  50, maxdepth = 3, minbucket = 50)
+tree3 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+tree3
+```
+
+```{r}
+# Test set
+pred_tree <- predict(tree3, test_set)
+confusionMatrix(test_set$category, pred_tree)
+```
+
+# Problem 4 {#sec-problem-4}
+
+In this problem you will identify the most important independent variables used in a classification model. Use the Bank_Modified.csv data. As a preprocessing step, remove the ID column and make sure to convert the target variable, approval, from a string to a factor.
+
+```{r}
+bank = read.csv("C:/Users/bunty/Desktop/funda/week_5/Bank_Modified.csv", header = T, sep = ",")
+head(bank)
+```
+
+```{r}
+bank = select(bank , -c("X"))
+```
+
+converting to factor
+
+```{r}
+bank$approval = as.factor(bank$approval)
+str(bank$approval)
+```
+
+Removing NA's
+
+```{r}
+bank = na.omit(bank)
+bank[rowSums(is.na(bank)) > 0, ]
+```
+
+**a.** Build your initial decision tree model with minsplit=10 and maxdepth=20
+
+```{r}
+#set hyperparameters
+hypers = rpart.control(minsplit =  10, maxdepth = 20)
+tree <- train(approval ~., data = bank, control = hypers, trControl =
+    train_control, method = "rpart1SE")
+tree
+```
+
+```{r}
+fancyRpartPlot(tree$finalModel, caption= "")
+```
+
+**b.** Run variable importance analysis on the model and print the result.
+
+```{r}
+var_imp <- varImp(tree, scale= FALSE)
+var_imp
+```
+
+**c.** Generate a plot to visualize the variables by importance.
+
+```{r}
+plot(var_imp)
+```
+
+**d .** Rebuild your model with the top six variables only, based on the variable relevance analysis. Did this change have an effect on the accuracy?
+
+```{r}
+new_bank = select(bank,c("approval","bool1","cont4","bool2","ages","cont6","cont3"))
+head(new_bank)
+```
+
+```{r}
+str(new_bank)
+```
+
+```{r}
+# split the data
+index1 = createDataPartition(y=new_bank$approval, p=0.7, list=FALSE)
+train_set = new_bank[index1,]
+test_set = new_bank[-index1,]
+```
+
+```{r}
+tree2 <- train(approval ~., data = train_set, method = "rpart1SE", 
+            trControl = train_control)
+tree2
+```
+
+we can observe that accuracy has increased after selecting relevant predictors (first 6).
+
+**e.** Visualize the trees from (a) and (d) and report if reducing the number of variables had an effect on the size of the tree?
+
+```{r}
+fancyRpartPlot(tree$finalModel, caption= "tree1")
+fancyRpartPlot(tree2$finalModel, caption= "tree2")
+```
+
+reducing the number of variables will reduce the graph.
+
